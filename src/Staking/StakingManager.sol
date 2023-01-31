@@ -11,7 +11,7 @@ import "./RewardToken.sol";
 contract StakingManager is Owned {
     using SafeTransferLib for ERC20;
 
-    uint256 private constant STAKER_SHARE_PRECISION = 1e12; // A big number to perform mul and div operations
+    uint256 private constant REWARDS_PRECISION = 1e12; // A big number to perform mul and div operations
 
     RewardToken public rewardToken; // Token to be payed as reward
     uint256 private rewardTokensPerBlock; // Number of reward tokens minted per block
@@ -21,14 +21,15 @@ contract StakingManager is Owned {
     struct PoolStaker {
         uint256 amount; // The tokens quantity the user has staked.
         uint256 rewards; // The reward tokens quantity the user can harvest
-        uint256 lastRewardedBlock; // Last block number the user had their rewards calculated
+        uint256 rewardDebt; // The amount relative to accumulatedRewardsPerShare the user can't get as reward
     }
 
     // Staking pool
     struct Pool {
         ERC20 stakeToken; // Token to be staked
         uint256 tokensStaked; // Total tokens staked
-        address[] stakers; // Stakers in this pool
+        uint256 lastRewardedBlock; // Last block number the user had their rewards calculated
+        uint256 accumulatedRewardsPerShare; // Accumulated rewards per share times REWARDS_PRECISION
     }
 
     Pool[] public pools; // Staking pools
@@ -42,7 +43,10 @@ contract StakingManager is Owned {
     event HarvestRewards(address indexed user, uint256 indexed poolId, uint256 amount);
     event PoolCreated(uint256 poolId);
 
-    constructor(address _owner) Owned(_owner) {}
+    constructor(address _owner, address _rewardTokenAddress, uint256 _rewardTokensPerBlock) Owned(_owner) {
+        rewardToken = RewardToken(_rewardTokenAddress);
+        rewardTokensPerBlock = _rewardTokensPerBlock;
+    }
 
     function createNewPool(ERC20 _stakeToken) external onlyOwner {
         Pool memory _pool;
@@ -52,37 +56,30 @@ contract StakingManager is Owned {
     }
 
     /**
-     * @dev Add staker address to the pool stakers if it's not there already
-     * We don't have to remove it because if it has amount 0 it won't affect rewards.
-     * (but it might save gas in the long run)
+     * @dev Update pool's accumulatedRewardsPerShare and lastRewardedBlock
      */
-    function addStakerToPoolIfInexistent(uint256 _poolId, address _depositingStaker) private {
+    function updatePoolRewards(uint256 _poolId) private {
         Pool storage pool = pools[_poolId];
-        for (uint256 i; i < pool.stakers.length; i++) {
-            address existingStaker = pool.stakers[i];
-            if (existingStaker == _depositingStaker) return;
+        if (pool.tokensStaked == 0) {
+            pool.lastRewardedBlock = block.number;
+            return;
         }
-        pool.stakers.push(msg.sender);
+        uint256 blocksSinceLastReward = block.number - pool.lastRewardedBlock;
+        uint256 rewards = blocksSinceLastReward * rewardTokensPerBlock;
+        pool.accumulatedRewardsPerShare += ((rewards * REWARDS_PRECISION) / pool.tokensStaked);
+        pool.lastRewardedBlock = block.number;
     }
 
-    /**
-     * @dev Loops over all stakers from a pool, updating their accumulated rewards according
-     * to their participation in the pool.
-     */
-     //! Gas Intensive: as it has to loop over a array of all stakers.
-    function updateStakersRewards(uint256 _poolId) private {
+    function harvestRewards(uint256 _poolId) public {
+        updatePoolRewards(_poolId);
         Pool storage pool = pools[_poolId];
-        for (uint256 i; i < pool.stakers.length; i++) {
-            address stakerAddress = pool.stakers[i];
-            PoolStaker storage staker = poolStakers[_poolId][stakerAddress];
-            if (staker.amount == 0) return;
-            uint256 stakedAmount = staker.amount;
-            uint256 stakerShare = (stakedAmount * STAKER_SHARE_PRECISION / pool.tokensStaked);
-            uint256 blocksSinceLastReward = block.number - staker.lastRewardedBlock;
-            uint256 rewards = (blocksSinceLastReward * rewardTokensPerBlock * stakerShare) / STAKER_SHARE_PRECISION;
-            staker.lastRewardedBlock = block.number;
-            staker.rewards = staker.rewards + rewards;
-        }
+        PoolStaker storage staker = poolStakers[_poolId][msg.sender];
+        uint256 rewardsToHarvest =
+            (staker.amount * pool.accumulatedRewardsPerShare / REWARDS_PRECISION) - staker.rewardDebt;
+        staker.rewards = 0;
+        staker.rewardDebt = staker.amount * pool.accumulatedRewardsPerShare / REWARDS_PRECISION;
+        emit HarvestRewards(msg.sender, _poolId, rewardsToHarvest);
+        rewardToken.mint(msg.sender, rewardsToHarvest);
     }
 
     function deposit(uint256 _poolId, uint256 _amount) external {
@@ -91,12 +88,11 @@ contract StakingManager is Owned {
         PoolStaker storage staker = poolStakers[_poolId][msg.sender];
 
         // Update pool stakers
-        updateStakersRewards(_poolId);
-        addStakerToPoolIfInexistent(_poolId, msg.sender);
+        harvestRewards(_poolId);
 
         // Update current staker
         staker.amount = staker.amount + _amount;
-        staker.lastRewardedBlock = block.number;
+        staker.rewardDebt = staker.amount * pool.accumulatedRewardsPerShare / REWARDS_PRECISION;
 
         // Update pool
         pool.tokensStaked = pool.tokensStaked + _amount;
@@ -106,36 +102,18 @@ contract StakingManager is Owned {
         pool.stakeToken.safeTransferFrom(address(msg.sender), address(this), _amount);
     }
 
-    /**
-     * @dev Harvest user rewards from a given pool id
-     */
-    function harvestRewards(uint256 _poolId) public {
-        updateStakersRewards(_poolId);
-        PoolStaker storage staker = poolStakers[_poolId][msg.sender];
-        uint256 rewardsToHarvest = staker.rewards;
-        staker.rewards = 0;
-        emit HarvestRewards(msg.sender, _poolId, rewardsToHarvest);
-        rewardToken.mint(msg.sender, rewardsToHarvest);
-    }
-
-
-    /**
-     * @dev Withdraw all tokens from an existing pool
-     */
     function withdraw(uint256 _poolId) external {
         Pool storage pool = pools[_poolId];
         PoolStaker storage staker = poolStakers[_poolId][msg.sender];
         uint256 amount = staker.amount;
         require(amount > 0, "Withdraw amount can't be zero");
 
-        // // Update pool stakers
-        // updateStakersRewards(_poolId);
-
         // Pay rewards
         harvestRewards(_poolId);
 
         // Update staker
         staker.amount = 0;
+        staker.rewardDebt = staker.amount * pool.accumulatedRewardsPerShare / REWARDS_PRECISION;
 
         // Update pool
         pool.tokensStaked = pool.tokensStaked - amount;
