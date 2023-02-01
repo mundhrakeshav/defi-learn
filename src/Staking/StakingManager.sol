@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-
+// https://dev.to/heymarkkop/understanding-sushiswaps-masterchef-staking-rewards-1m6f
 pragma solidity ^0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
