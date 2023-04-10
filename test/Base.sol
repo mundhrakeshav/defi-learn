@@ -7,7 +7,7 @@ abstract contract BaseTest is Test {
     string RPC_URL = "https://eth-mainnet.g.alchemy.com/v2/zE4hvUo53cxgwTRp7UI2zi2tzDQ0QtbB";
 
     function setUp() public virtual {
-        uint256 forkId = vm.createFork(RPC_URL, 16806984);
+        uint256 forkId = vm.createFork(RPC_URL);
         vm.selectFork(forkId);
         hoax(address(this));
     }
