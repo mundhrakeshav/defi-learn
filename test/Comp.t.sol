@@ -2,11 +2,12 @@
 pragma solidity ^0.8.13;
 
 import { BaseForkedTest } from "./BaseForked.t.sol";
+import { stdStorage, StdStorage } from "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {ICERC20} from "src/ICERC20.sol";
+import {ICERC20} from "src/interfaces/ICERC20.sol";
 
-contract CompTest is BaseForked {
+contract CompTest is BaseForkedTest {
     using stdStorage for StdStorage;
 
     ICERC20 public cerc;
