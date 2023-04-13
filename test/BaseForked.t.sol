@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-abstract contract BaseTest is Test {
+abstract contract BaseForkedTest is Test {
     string RPC_URL = "https://eth-mainnet.g.alchemy.com/v2/zE4hvUo53cxgwTRp7UI2zi2tzDQ0QtbB";
 
     function setUp() public virtual {

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./Base.sol";
+import { BaseForkedTest } from "./BaseForked.t.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ICERC20} from "src/ICERC20.sol";
 
-contract CompTest is BaseTest {
+contract CompTest is BaseForked {
     using stdStorage for StdStorage;
 
     ICERC20 public cerc;
