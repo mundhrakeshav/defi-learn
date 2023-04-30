@@ -6,32 +6,34 @@ import {IComptroller} from "../interfaces/IComptroller.sol";
 import {IInterestRateModel} from "../interfaces/IInterestRateModel.sol";
 import {ExponentialNoError} from "../ExponentialNoError.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
-//! No onlyAdmin protection
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 contract CERC20 is CERC20Storage, ExponentialNoError {
-    function initialize(
-        address _underlying,
+    constructor(
+        ERC20 _underlying,
         IComptroller _comptroller,
         IInterestRateModel _interestRateModel,
         uint256 _initialExchangeRateMantissa,
         string memory _name,
         string memory _symbol,
         uint8 _decimals
-    ) public {
-        if (accrualBlockNumber != 0 || borrowIndex != 0) revert AlreadyInitialized();
-        if (_initialExchangeRateMantissa <= 0) revert InitialExchangeRateTooLow();
+    ) ERC20(_name, _symbol, _decimals) {
+        // Below statement would be needed if we use a proxy and an initialize function instead of constructor
+        // if (accrualBlockNumber != 0 || borrowIndex != 0) revert AlreadyInitialized();
+
+        if (_initialExchangeRateMantissa == 0) revert InitialExchangeRateTooLow();
 
         initialExchangeRateMantissa = _initialExchangeRateMantissa;
-        setComptroller(_comptroller);
+
+        // setComptroller(_comptroller);
+        comptroller = _comptroller;
 
         accrualBlockNumber = block.number;
         borrowIndex = MANTISSA_ONE;
 
-        setInterestRateModelFresh(_interestRateModel);
+        // setInterestRateModelFresh(_interestRateModel);
+        interestRateModel = _interestRateModel;
 
-        name = _name;
-        symbol = _symbol;
-        decimals = _decimals;
         underlying = _underlying;
         _notEntered = true;
     }
@@ -55,4 +57,135 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
         interestRateModel = newInterestRateModel;
     }
 
+    // function getCashPrior() internal view returns(uint) {
+    //     ERC20 token = ERC20(underlying);
+    //     return token.balanceOf(address(this));
+    // }
+
+    /**
+     * @notice Calculates the exchange rate from the underlying to the CToken
+     * @dev This function does not accrue interest before calculating the exchange rate
+     * @return calculated exchange rate scaled by 1e18
+     */
+    function exchangeRateStored() public view returns (uint) {
+        uint _totalSupply = totalSupply;
+        if (_totalSupply == 0) {
+            /*
+             * If there are no tokens minted:
+             *  exchangeRate = initialExchangeRate
+             */
+            return initialExchangeRateMantissa;
+        } else {
+            /*
+             * Otherwise:
+             *  exchangeRate = (totalCash + totalBorrows - totalReserves) / totalSupply
+             */
+            uint totalCash = underlying.balanceOf(address(this));
+            uint cashPlusBorrowsMinusReserves = totalCash + totalBorrows - totalReserves;
+            return cashPlusBorrowsMinusReserves * EXP_SCALE / _totalSupply;
+        }
+    }
+
+    function accrueInterest() public {
+        /* Remember the initial block number */
+        uint256 currentBlockNumber = block.number;
+        uint256 accrualBlockNumberPrior = accrualBlockNumber;
+
+        /* Short-circuit accumulating 0 interest */
+        if (accrualBlockNumberPrior == currentBlockNumber) {
+            return;
+        }
+
+        /* Read the previous values out of storage */
+        uint256 cashPrior = underlying.balanceOf(address(this));
+        uint256 borrowsPrior = totalBorrows;
+        uint256 reservesPrior = totalReserves;
+        uint256 borrowIndexPrior = borrowIndex;
+
+        /* Calculate the current borrow interest rate */
+        uint256 borrowRateMantissa = interestRateModel.getBorrowRate(cashPrior, borrowsPrior, reservesPrior);
+        if (borrowRateMantissa > borrowRateMaxMantissa) revert BorrowRateVHigh();
+
+        /* Calculate the number of blocks elapsed since the last accrual */
+        uint256 blockDelta = currentBlockNumber - accrualBlockNumberPrior;
+
+        /*
+         * Calculate the interest accumulated into borrows and reserves and the new index:
+         *  simpleInterestFactor = borrowRate * blockDelta
+         *  interestAccumulated = simpleInterestFactor * totalBorrows
+         *  totalBorrowsNew = interestAccumulated + totalBorrows
+         *  totalReservesNew = interestAccumulated * reserveFactor + totalReserves
+         *  borrowIndexNew = simpleInterestFactor * borrowIndex + borrowIndex
+         */
+
+        Exp memory simpleInterestFactor = mul_(Exp({mantissa: borrowRateMantissa}), blockDelta);
+        uint256 interestAccumulated = mul_ScalarTruncate(simpleInterestFactor, borrowsPrior);
+        uint256 totalBorrowsNew = interestAccumulated + borrowsPrior;
+        uint256 totalReservesNew =
+            mul_ScalarTruncateAddUInt(Exp({mantissa: reserveFactorMantissa}), interestAccumulated, reservesPrior);
+        uint256 borrowIndexNew = mul_ScalarTruncateAddUInt(simpleInterestFactor, borrowIndexPrior, borrowIndexPrior);
+
+        accrualBlockNumber = currentBlockNumber;
+        borrowIndex = borrowIndexNew;
+        totalBorrows = totalBorrowsNew;
+        totalReserves = totalReservesNew;
+
+        emit AccrueInterest(cashPrior, interestAccumulated, borrowIndexNew, totalBorrowsNew);
+    }
+
+    function mintFresh(address minter, uint256 mintAmount) internal {
+        /* Fail if mint not allowed */
+        uint256 allowed = comptroller.mintAllowed(address(this), minter, mintAmount);
+        if (allowed != 0) {
+            revert ComptrollerRejection();
+        }
+
+        /* Verify market's block number equals current block number */
+        // 
+        if (accrualBlockNumber != block.number) {
+            revert MarketBlockNumberNotEqCurrentBlockNumber();
+        }
+
+        Exp memory exchangeRate = Exp({mantissa: exchangeRateStored()});
+
+        /////////////////////////
+        // EFFECTS & INTERACTIONS
+        // (No safe failures beyond this point)
+
+        /*
+         *  We call `doTransferIn` for the minter and the mintAmount.
+         *  Note: The cToken must handle variations between ERC-20 and ETH underlying.
+         *  `doTransferIn` reverts if anything goes wrong, since we can't be sure if
+         *  side-effects occurred. The function returns the amount actually transferred,
+         *  in case of a fee. On success, the cToken holds an additional `actualMintAmount`
+         *  of cash.
+         */
+        uint256 actualMintAmount = doTransferIn(minter, mintAmount);
+
+        /*
+         * We get the current exchange rate and calculate the number of cTokens to be minted:
+         *  mintTokens = actualMintAmount / exchangeRate
+         */
+
+        uint256 mintTokens = div_(actualMintAmount, exchangeRate);
+
+        /*
+         * Mint cTokens to minter
+         */
+        _mint(minter, mintTokens);
+        emit Mint(minter, actualMintAmount, mintTokens);
+    }
+
+    function doTransferIn(address from, uint amount) virtual internal returns (uint) {        
+        uint balanceBefore = underlying.balanceOf(address(this));
+        SafeTransferLib.safeTransferFrom(underlying, from, address(this), amount);
+        uint balanceAfter = underlying.balanceOf(address(this));
+        return balanceAfter - balanceBefore;
+    }
+
+    function mint(uint256 _mintAmount) external override {
+        accrueInterest();
+        // mintFresh emits the actual Mint event if successful and logs on errors, so we don't need to
+        mintFresh(msg.sender, _mintAmount);
+    }
 }

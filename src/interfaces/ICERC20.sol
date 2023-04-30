@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
-import "./ICToken.sol";
-interface ICERC20 is ICToken {
 
-    /*** User Interface ***/
-    function mint(uint _mintAmount) external;
+import "./ICToken.sol";
+
+interface ICERC20 is ICToken {
+    /**
+     * User Interface **
+     */
+    function mint(uint256 _mintAmount) external;
     // function redeem(uint redeemTokens) external returns (uint);
     // function redeemUnderlying(uint redeemAmount) external returns (uint);
     // function borrow(uint borrowAmount) external returns (uint);

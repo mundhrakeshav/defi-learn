@@ -6,5 +6,5 @@ interface IErrors {
     error AlreadyInitialized();
     error MarkerMethodErr();
     error MarketBlockNumberNotEqCurrentBlockNumber();
-
+    error ComptrollerRejection();
 }

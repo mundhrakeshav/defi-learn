@@ -4,8 +4,9 @@ pragma solidity 0.8.17;
 import "../interfaces/ICERC20.sol";
 import "../interfaces/IComptroller.sol";
 import {IInterestRateModel} from "../interfaces/IInterestRateModel.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 
-abstract contract CERC20Storage is ICERC20 {
+abstract contract CERC20Storage is ICERC20, ERC20 {
     /**
      * @notice Container for borrow balance information
      * @member principal Total balance (with accrued interest), after applying the most recent balance-changing action
@@ -44,20 +45,10 @@ abstract contract CERC20Storage is ICERC20 {
     // Expressed in scale 1e18
     uint256 internal initialExchangeRateMantissa;
 
-    // Official record of token balances for each account
-    mapping(address => uint256) internal accountTokens;
-
-    // Approved token transfer amounts on behalf of others
-    mapping(address => mapping(address => uint256)) internal transferAllowances;
-
     // Mapping of account addresses to outstanding borrow balances
     mapping(address => BorrowSnapshot) internal accountBorrows;
 
-    string public name;
-    string public symbol;
-    uint8 public decimals;
-
-    address public underlying; // underlying asset
+    ERC20 public underlying; // underlying asset
     address payable public admin;
     address payable public pendingAdmin;
     IComptroller public comptroller;
@@ -77,7 +68,4 @@ abstract contract CERC20Storage is ICERC20 {
 
     // Total amount of reserves of the underlying held in this market
     uint256 public totalReserves;
-
-    // Total number of tokens in circulation
-    uint256 public totalSupply;
 }

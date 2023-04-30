@@ -2,8 +2,7 @@
 pragma solidity 0.8.17;
 
 interface IComptroller {
-    
-    function isComptroller() external returns(bool);
+    function isComptroller() external returns (bool);
     /**
      * Assets You Are In **
      */
