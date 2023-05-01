@@ -57,18 +57,13 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
         interestRateModel = newInterestRateModel;
     }
 
-    // function getCashPrior() internal view returns(uint) {
-    //     ERC20 token = ERC20(underlying);
-    //     return token.balanceOf(address(this));
-    // }
-
     /**
      * @notice Calculates the exchange rate from the underlying to the CToken
      * @dev This function does not accrue interest before calculating the exchange rate
      * @return calculated exchange rate scaled by 1e18
      */
-    function exchangeRateStored() public view returns (uint) {
-        uint _totalSupply = totalSupply;
+    function exchangeRateStored() public view returns (uint256) {
+        uint256 _totalSupply = totalSupply;
         if (_totalSupply == 0) {
             /*
              * If there are no tokens minted:
@@ -80,8 +75,8 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
              * Otherwise:
              *  exchangeRate = (totalCash + totalBorrows - totalReserves) / totalSupply
              */
-            uint totalCash = underlying.balanceOf(address(this));
-            uint cashPlusBorrowsMinusReserves = totalCash + totalBorrows - totalReserves;
+            uint256 totalCash = underlying.balanceOf(address(this));
+            uint256 cashPlusBorrowsMinusReserves = totalCash + totalBorrows - totalReserves;
             return cashPlusBorrowsMinusReserves * EXP_SCALE / _totalSupply;
         }
     }
@@ -141,7 +136,7 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
         }
 
         /* Verify market's block number equals current block number */
-        // 
+        //
         if (accrualBlockNumber != block.number) {
             revert MarketBlockNumberNotEqCurrentBlockNumber();
         }
@@ -176,16 +171,97 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
         emit Mint(minter, actualMintAmount, mintTokens);
     }
 
-    function doTransferIn(address from, uint amount) virtual internal returns (uint) {        
-        uint balanceBefore = underlying.balanceOf(address(this));
+    /**
+     * @notice Return the borrow balance of account based on stored data
+     * @param account The address whose balance should be calculated
+     * @return (error code, the calculated balance or 0 if error code is non-zero)
+     */
+    function borrowBalanceStoredInternal(address account) internal view returns (uint256) {
+        /* Get borrowBalance and borrowIndex */
+        BorrowSnapshot storage borrowSnapshot = accountBorrows[account];
+
+        /* If borrowBalance = 0 then borrowIndex is likely also 0.
+         * Rather than failing the calculation with a division by 0, we immediately return 0 in this case.
+         */
+        if (borrowSnapshot.principal == 0) {
+            return 0;
+        }
+
+        /* Calculate new borrow balance using the interest index:
+         *  recentBorrowBalance = borrower.borrowBalance * market.borrowIndex / borrower.borrowIndex
+         */
+        uint256 principalTimesIndex = borrowSnapshot.principal * borrowIndex;
+        return principalTimesIndex / borrowSnapshot.interestIndex;
+    }
+
+    /**
+     * @notice Users borrow assets from the protocol to their own address
+     * @param borrowAmount The amount of the underlying asset to borrow
+     */
+    function borrowFresh(address payable borrower, uint256 borrowAmount) internal {
+        /* Fail if borrow not allowed */
+        uint256 allowed = comptroller.borrowAllowed(address(this), borrower, borrowAmount);
+        if (allowed != 0) {
+            revert ComptrollerRejection();
+        }
+
+        /* Verify market's block number equals current block number i.e. interest has been accrued*/
+        if (accrualBlockNumber != block.number) {
+            revert MarketBlockNumberNotEqCurrentBlockNumber();
+        }
+
+        /* Fail gracefully if protocol has insufficient underlying cash */
+        if (underlying.balanceOf(address(this)) < borrowAmount) {
+            revert BorrowCashNotAvailable();
+        }
+
+        /*
+         * We calculate the new borrower and total borrow balances, failing on overflow:
+         *  accountBorrowNew = accountBorrow + borrowAmount
+         *  totalBorrowsNew = totalBorrows + borrowAmount
+         */
+        uint256 accountBorrowsPrev = borrowBalanceStoredInternal(borrower);
+        uint256 accountBorrowsNew = accountBorrowsPrev + borrowAmount;
+        uint256 totalBorrowsNew = totalBorrows + borrowAmount;
+
+        /*
+         * We write the previously calculated values into storage.
+         *  Note: Avoid token reentrancy attacks by writing increased borrow before external transfer.
+        `*/
+        accountBorrows[borrower].principal = accountBorrowsNew;
+        accountBorrows[borrower].interestIndex = borrowIndex;
+        totalBorrows = totalBorrowsNew;
+
+        /*
+         * We invoke doTransferOut for the borrower and the borrowAmount.
+         *  Note: The cToken must handle variations between ERC-20 and ETH underlying.
+         *  On success, the cToken borrowAmount less of cash.
+         *  doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
+         */
+        doTransferOut(borrower, borrowAmount);
+
+        /* We emit a Borrow event */
+        emit Borrow(borrower, borrowAmount, accountBorrowsNew, totalBorrowsNew);
+    }
+
+    function doTransferIn(address from, uint256 amount) internal virtual returns (uint256) {
+        uint256 balanceBefore = underlying.balanceOf(address(this));
         SafeTransferLib.safeTransferFrom(underlying, from, address(this), amount);
-        uint balanceAfter = underlying.balanceOf(address(this));
+        uint256 balanceAfter = underlying.balanceOf(address(this));
         return balanceAfter - balanceBefore;
+    }
+
+    function doTransferOut(address payable to, uint amount)  internal virtual {
+        SafeTransferLib.safeTransfer(underlying, to, amount);
     }
 
     function mint(uint256 _mintAmount) external override {
         accrueInterest();
-        // mintFresh emits the actual Mint event if successful and logs on errors, so we don't need to
         mintFresh(msg.sender, _mintAmount);
+    }
+
+    function borrow(uint256 borrowAmount) external override {
+        accrueInterest();
+        borrowFresh(payable(msg.sender), borrowAmount);
     }
 }

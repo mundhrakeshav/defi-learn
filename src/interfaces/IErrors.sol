@@ -7,4 +7,5 @@ interface IErrors {
     error MarkerMethodErr();
     error MarketBlockNumberNotEqCurrentBlockNumber();
     error ComptrollerRejection();
+    error BorrowCashNotAvailable();
 }
