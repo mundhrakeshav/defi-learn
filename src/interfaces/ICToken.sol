@@ -43,7 +43,7 @@ interface ICToken is IErrors {
     // function borrowBalanceCurrent(address account) external returns (uint);
     // function borrowBalanceStored(address account) external view returns (uint);
     // function exchangeRateCurrent() external returns (uint);
-    function exchangeRateStored() external view returns (uint);
+    function exchangeRateStored() external view returns (uint256);
     // function getCash() external view returns (uint);
     function accrueInterest() external;
     // function seize(address liquidator, address borrower, uint seizeTokens) external returns (uint);

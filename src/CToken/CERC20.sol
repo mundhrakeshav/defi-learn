@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import {CERC20Storage} from "./CERC20Storage.sol";
 import {IComptroller} from "../interfaces/IComptroller.sol";
+import {ICToken} from "../interfaces/ICToken.sol";
 import {IInterestRateModel} from "../interfaces/IInterestRateModel.sol";
 import {ExponentialNoError} from "../ExponentialNoError.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
@@ -40,7 +41,6 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
 
     function setComptroller(IComptroller newComptroller) public override {
         IComptroller oldComptroller = comptroller;
-        if (!newComptroller.isComptroller()) revert MarkerMethodErr(); // Ensure invoke comptroller.isComptroller() returns true
         comptroller = newComptroller;
         emit NewComptroller(oldComptroller, newComptroller);
     }
@@ -130,8 +130,8 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
 
     function mintFresh(address minter, uint256 mintAmount) internal {
         /* Fail if mint not allowed */
-        uint256 allowed = comptroller.mintAllowed(address(this), minter, mintAmount);
-        if (allowed != 0) {
+        bool _allowed = comptroller.mintAllowed(ICToken(address(this)));
+        if (_allowed) {
             revert ComptrollerRejection();
         }
 
@@ -200,8 +200,8 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
      */
     function borrowFresh(address payable borrower, uint256 borrowAmount) internal {
         /* Fail if borrow not allowed */
-        uint256 allowed = comptroller.borrowAllowed(address(this), borrower, borrowAmount);
-        if (allowed != 0) {
+        bool _allowed = comptroller.borrowAllowed(ICToken(address(this)), borrower, borrowAmount);
+        if (!_allowed) {
             revert ComptrollerRejection();
         }
 
@@ -224,21 +224,11 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
         uint256 accountBorrowsNew = accountBorrowsPrev + borrowAmount;
         uint256 totalBorrowsNew = totalBorrows + borrowAmount;
 
-        /*
-         * We write the previously calculated values into storage.
-         *  Note: Avoid token reentrancy attacks by writing increased borrow before external transfer.
-        `*/
         accountBorrows[borrower].principal = accountBorrowsNew;
         accountBorrows[borrower].interestIndex = borrowIndex;
         totalBorrows = totalBorrowsNew;
 
-        /*
-         * We invoke doTransferOut for the borrower and the borrowAmount.
-         *  Note: The cToken must handle variations between ERC-20 and ETH underlying.
-         *  On success, the cToken borrowAmount less of cash.
-         *  doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
-         */
-        doTransferOut(borrower, borrowAmount);
+        SafeTransferLib.safeTransfer(underlying, borrower, borrowAmount);
 
         /* We emit a Borrow event */
         emit Borrow(borrower, borrowAmount, accountBorrowsNew, totalBorrowsNew);
@@ -249,10 +239,6 @@ contract CERC20 is CERC20Storage, ExponentialNoError {
         SafeTransferLib.safeTransferFrom(underlying, from, address(this), amount);
         uint256 balanceAfter = underlying.balanceOf(address(this));
         return balanceAfter - balanceBefore;
-    }
-
-    function doTransferOut(address payable to, uint amount)  internal virtual {
-        SafeTransferLib.safeTransfer(underlying, to, amount);
     }
 
     function mint(uint256 _mintAmount) external override {

@@ -8,4 +8,6 @@ interface IErrors {
     error MarketBlockNumberNotEqCurrentBlockNumber();
     error ComptrollerRejection();
     error BorrowCashNotAvailable();
+    error SenderNotCToken();
+    error MarketNotListed();
 }
