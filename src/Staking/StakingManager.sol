@@ -74,8 +74,11 @@ contract StakingManager is Owned {
         updatePoolRewards(_poolId);
         Pool storage pool = pools[_poolId];
         PoolStaker storage staker = poolStakers[_poolId][msg.sender];
-        uint256 rewardsToHarvest =
-            (staker.amount * pool.accumulatedRewardsPerShare / REWARDS_PRECISION) - staker.rewardDebt;
+        uint256 rewardsToHarvest = (staker.amount * pool.accumulatedRewardsPerShare / REWARDS_PRECISION) - staker.rewardDebt;
+        if (rewardsToHarvest == 0) {
+            staker.rewardDebt = staker.amount * pool.accumulatedRewardsPerShare / REWARDS_PRECISION;
+            return;
+        }
         staker.rewards = 0;
         staker.rewardDebt = staker.amount * pool.accumulatedRewardsPerShare / REWARDS_PRECISION;
         emit HarvestRewards(msg.sender, _poolId, rewardsToHarvest);
