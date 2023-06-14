@@ -7,7 +7,7 @@ import {DataTypes} from "../src/AAVE/DataTypes.sol";
 import {IPool} from "../src/AAVE/IPool.sol";
 import {ISwapRouter} from "../src/Uniswap/ISwapRouter.sol";
 import {IWETH9} from "../src/IWETH9.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
+import {ERC20} from "solmate/src/tokens/ERC20.sol";
 
 contract EthApeCoinStrategyTest is BaseTest {
     address public aavePoolAddress = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;

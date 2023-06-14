@@ -3,8 +3,8 @@ pragma solidity 0.8.18;
 
 import {IPool} from "./AAVE/IPool.sol";
 import {IWETH9} from "./IWETH9.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
-import {Owned} from "solmate/auth/Owned.sol";
+import {ERC20} from "solmate/src/tokens/ERC20.sol";
+import {Owned} from "solmate/src/auth/Owned.sol";
 import {ISwapRouter} from "./Uniswap/ISwapRouter.sol";
 import {IHelperContractParaSpace} from "./IHelperContractParaSpace.sol";
 
