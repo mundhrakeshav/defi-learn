@@ -18,5 +18,6 @@ interface IPool {
             uint256 healthFactor
         );
     function setUserUseReserveAsCollateral(address asset, bool useAsCollateral) external;
-    function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) external;
+    function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf)
+        external;
 }
