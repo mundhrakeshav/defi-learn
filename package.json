@@ -26,6 +26,7 @@
     "hardhat": "^2.15.0"
   },
   "dependencies": {
+    "@chainlink/contracts": "^0.6.1",
     "forge-std": "^1.1.2",
     "solmate": "^6.1.0"
   }

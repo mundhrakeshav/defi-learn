@@ -30,6 +30,10 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18) {
 
     constructor(address _owner) Owned(_owner) {}
 
+    function getAmtToShare(uint _amt) view public {
+        
+    }
+    
     function approveToken(ERC20 _token, address _spender, uint256 _amt) external onlyOwner {
         _token.approve(_spender, _amt);
     }
