@@ -7,7 +7,7 @@ abstract contract BaseTest is Test {
     string RPC_URL = "https://mainnet.infura.io/v3/bdaefb510f71410d8e698f692309bac2";
 
     function setUp() public virtual {
-        uint256 forkId = vm.createFork(RPC_URL, 17412825);
+        uint256 forkId = vm.createFork(RPC_URL, 17483125);
         vm.selectFork(forkId);
         hoax(address(this));
     }

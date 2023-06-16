@@ -1,61 +1,84 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-import {IPool} from "./AAVE/IPool.sol";
-import {IWETH9} from "./IWETH9.sol";
 import {ERC20} from "solmate/src/tokens/ERC20.sol";
 import {Owned} from "solmate/src/auth/Owned.sol";
+import {AggregatorV3Interface} from "chainlink/interfaces/AggregatorV3Interface.sol";
 import {ISwapRouter} from "./Uniswap/ISwapRouter.sol";
-import {IHelperContractParaSpace} from "./IHelperContractParaSpace.sol";
+import {Config} from "./Config.sol";
 
 // Precision for price in USD is 1e8
-contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18) {
-    address public aavePoolAddress = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
-    address public wethAddress = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address public usdcAddress = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address public daiAddress = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address public swapRouterAddress = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    address public apeCoinAddress = 0x4d224452801ACEd8B2F0aebE155379bb5D594381;
-    address public helperContractParaSpaceAddress = 0xBAa0DaA4224d2eb4619FfDC8A50Ef50c754b55F3;
-
-    IPool public aavePool = IPool(aavePoolAddress);
-    IWETH9 public weth = IWETH9(wethAddress);
-    ERC20 public usdc = ERC20(usdcAddress);
-    ERC20 public dai = ERC20(daiAddress);
-    ERC20 public ape = ERC20(apeCoinAddress);
-    ISwapRouter public swapRouter = ISwapRouter(swapRouterAddress);
-    IHelperContractParaSpace public helperContractParaSpace = IHelperContractParaSpace(helperContractParaSpaceAddress);
-
+contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
+    uint256 public constant PRECISION = 1e18;
     uint24 public constant poolFee = 3000;
+
+    enum BorrowRate {
+        INVALID,
+        STABLE,
+        VARIABLE
+    }
+
+    uint256 public withdrawPool;
 
     constructor(address _owner) Owned(_owner) {}
 
-    function getAmtToShare(uint _amt) view public {
-        
+    function getPositions(address _addr)
+        public
+        view
+        returns (uint256 _aEthWethColl, uint256 _aVariableDebtUSDC, uint256 _apeBal)
+    {
+        _aEthWethColl = AAVE_ETH_WETH.balanceOf(_addr);
+        _aVariableDebtUSDC = AAVE_VARIABLE_DEBT_USDC.balanceOf(_addr);
+        _apeBal = C_APE.balanceOf(_addr);
     }
-    
+
+    function getShareToAmt(uint256 _amt) public view {}
+
     function approveToken(ERC20 _token, address _spender, uint256 _amt) external onlyOwner {
         _token.approve(_spender, _amt);
     }
 
-    function deposit() external payable {
-        weth.deposit{value: msg.value}();
-        aavePool.supply(wethAddress, msg.value, address(this), 0);
-        // Add logic for handling shares
+    function deposit(address _to) external payable {
+        uint256 aTokens = AAVE_ETH_WETH.balanceOf(address(this));
+        WETH.deposit{value: msg.value}();
+        AAVE_POOL.supply(WETH_ADDRESS, msg.value, address(this), 0);
+        withdrawPool += msg.value;
+        if (totalSupply == 0) {
+            _mint(_to, msg.value);
+        } else {
+            uint256 _shares = (msg.value * totalSupply) / aTokens;
+            _mint(_to, _shares);
+        }
     }
 
     function borrowFromAAVE(address _asset, uint256 _amount) external onlyOwner {
-        aavePool.borrow(_asset, _amount, 2, 0, address(this));
+        AAVE_POOL.borrow(_asset, _amount, uint256(BorrowRate.VARIABLE), 0, address(this));
+    }
+
+    function getAAVEPosition()
+        external
+        view
+        returns (
+            uint256 totalCollateralBase,
+            uint256 totalDebtBase,
+            uint256 availableBorrowsBase,
+            uint256 currentLiquidationThreshold,
+            uint256 ltv,
+            uint256 healthFactor
+        )
+    {
+        (totalCollateralBase, totalDebtBase, availableBorrowsBase, currentLiquidationThreshold, ltv, healthFactor) =
+            AAVE_POOL.getUserAccountData(address(this));
     }
 
     function swapUSDCForApe() external onlyOwner {
-        uint256 _amt = usdc.balanceOf(address(this));
+        uint256 _amt = USDC.balanceOf(address(this));
         //
-        usdc.approve(swapRouterAddress, _amt);
+        USDC.approve(SWAP_ROUTER_ADDRESS, _amt);
         //
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-            tokenIn: usdcAddress,
-            tokenOut: apeCoinAddress,
+            tokenIn: USDC_ADDRESS,
+            tokenOut: APE_COIN_ADDRESS,
             fee: poolFee,
             recipient: address(this),
             deadline: block.timestamp,
@@ -64,13 +87,13 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18) {
             sqrtPriceLimitX96: 0
         });
         //
-        swapRouter.exactInputSingle(params);
+        SWAP_ROUTER.exactInputSingle(params);
     }
 
     function swapApeForPCAPE() external onlyOwner {
-        uint256 _amt = ape.balanceOf(address(this));
-        ape.approve(helperContractParaSpaceAddress, type(uint256).max);
+        uint256 _amt = APE.balanceOf(address(this));
+        APE.approve(HELPER_CONTRACT_PARASPACE_ADDRESS, type(uint256).max);
 
-        helperContractParaSpace.convertApeCoinToPCApe(_amt);
+        HELPER_CONTRACT_PARASPACE.convertApeCoinToPCApe(_amt);
     }
 }
