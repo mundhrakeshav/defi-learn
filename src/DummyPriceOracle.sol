@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-import "../src/AAVE/IPriceOracle.sol";
-
-contract DummyPriceOracle is IPriceOracle {
+contract DummyPriceOracle {
     mapping(address => uint256) internal prices;
 
-    address public BASE_CURRENCY;
-    uint256 public BASE_CURRENCY_UNIT = 1e8;
-
-    function getAssetPrice(address asset) external view returns (uint256){
+    function getAssetPrice(address asset) external view returns (uint256) {
         return prices[asset];
     }
 

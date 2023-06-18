@@ -3,4 +3,5 @@ pragma solidity 0.8.18;
 
 interface IHelperContractParaSpace {
     function convertApeCoinToPCApe(uint256 amount) external;
+    function convertPCApeToApeCoin(uint256 amount) external;
 }

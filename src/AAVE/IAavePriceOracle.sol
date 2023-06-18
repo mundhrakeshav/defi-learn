@@ -2,11 +2,11 @@
 pragma solidity 0.8.18;
 
 /**
- * @title IPriceOracle
+ * @title IAavePriceOracle
  * @author Aave
  * @notice Interface for the Aave price oracle.
  */
-interface IPriceOracle {
+interface IAavePriceOracle {
     /**
      * @notice Returns the base currency address
      * @dev Address 0x0 is reserved for USD as base currency.
@@ -27,7 +27,6 @@ interface IPriceOracle {
      * @return The price of the asset
      */
     function getAssetPrice(address asset) external view returns (uint256);
-
 
     /**
      * @notice Set the price of the asset
