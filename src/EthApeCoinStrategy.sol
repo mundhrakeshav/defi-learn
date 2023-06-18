@@ -117,7 +117,7 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
         return _apeBal;
     }
 
-    function swapPcApeForApe(uint _amt) public onlyOwner {
+    function swapPcApeForApe(uint256 _amt) public onlyOwner {
         PC_APE.approve(HELPER_CONTRACT_PARASPACE_ADDRESS, type(uint256).max);
         HELPER_CONTRACT_PARASPACE.convertPCApeToApeCoin(_amt);
     }
