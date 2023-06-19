@@ -8,7 +8,8 @@ import {IAutoCompoundApe} from "./ParaSpace/IAutoCompoundApe.sol";
 import {IWETH9} from "./IWETH9.sol";
 import {ERC20} from "solmate/src/tokens/ERC20.sol";
 import {ISwapRouter} from "./Uniswap/ISwapRouter.sol";
-import {IHelperContractParaSpace} from "./IHelperContractParaSpace.sol";
+import {IHelperContractParaSpace} from "./ParaSpace/IHelperContractParaSpace.sol";
+import {ITimeLock} from "./ParaSpace/ITimeLock.sol";
 import {AggregatorInterface} from "chainlink/interfaces/AggregatorInterface.sol";
 
 contract Config {
@@ -28,6 +29,7 @@ contract Config {
     //
     address public constant HELPER_CONTRACT_PARASPACE_ADDRESS = 0xBAa0DaA4224d2eb4619FfDC8A50Ef50c754b55F3;
     address public constant POOL_APE_STAKING_ADDRESS = 0x638a98BBB92a7582d07C52ff407D49664DC8b3Ee;
+    address public constant PARASPACE_TIMELOCK_ADDRESS = 0x59B72FdB45B3182c8502cC297167FE4f821f332d;
     //
     address public constant SWAP_ROUTER_ADDRESS = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
     //
@@ -54,6 +56,8 @@ contract Config {
     IHelperContractParaSpace public constant HELPER_CONTRACT_PARASPACE =
         IHelperContractParaSpace(HELPER_CONTRACT_PARASPACE_ADDRESS);
     IAutoCompoundApe public constant C_APE = IAutoCompoundApe(C_APE_ADDRESS);
+    ITimeLock public constant PARASPACE_TIMELOCK = ITimeLock(PARASPACE_TIMELOCK_ADDRESS);
+    //
     AggregatorInterface public constant CHAINLINK_APE_USD_AGGREGATOR =
         AggregatorInterface(CHAINLINK_APE_USD_AGGREGATOR_ADDRESS);
     AggregatorInterface public constant CHAINLINK_ETH_USD_AGGREGATOR =

@@ -21,6 +21,7 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
 
     uint256 public withdrawPool;
     IPriceOracle public oracle;
+    uint248 public agreementID;
 
     constructor(address _owner, address _oracle) Owned(_owner) {
         oracle = IPriceOracle(_oracle);
@@ -29,15 +30,11 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
     function getPositions() public view returns (uint256 _aEthWethColl, uint256 _aVariableDebtUSDC, uint256 _apeBal) {
         _aEthWethColl = AAVE_ETH_WETH.balanceOf(address(this));
         _aVariableDebtUSDC = AAVE_VARIABLE_DEBT_USDC.balanceOf(address(this));
-        _apeBal = C_APE.balanceOf(address(this));
+        _apeBal = PC_APE.balanceOf(address(this));
     }
 
     function getPrice(address _asset) public view returns (uint256) {
         return oracle.getAssetPrice(_asset); // Precision of 1e8
-    }
-
-    function setOracle(address _oracle) public {
-        oracle = IPriceOracle(_oracle);
     }
 
     function getNetAsset()
@@ -46,11 +43,14 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
         returns (uint256 _apeUSD, uint256 _usdcDebtUSD, uint256 _ethCollUSD, uint256 _netUSDAmt)
     {
         (uint256 _aEthWethColl, uint256 _aVariableDebtUSDC, uint256 _apeBal) = getPositions();
-        _apeUSD = getPrice(APE_COIN_ADDRESS) * _apeBal;
-        _usdcDebtUSD = getPrice(USDC_ADDRESS) * _aVariableDebtUSDC;
-        _ethCollUSD = getPrice(WETH_ADDRESS) * _aEthWethColl;
-
+        _apeUSD = getPrice(APE_COIN_ADDRESS) * _apeBal / 1e8;
+        _usdcDebtUSD = (getPrice(USDC_ADDRESS) * _aVariableDebtUSDC * 1e18) / (1e8 * 1e6);
+        _ethCollUSD = getPrice(WETH_ADDRESS) * _aEthWethColl / 1e8;
         _netUSDAmt = _apeUSD + _ethCollUSD - _usdcDebtUSD;
+    }
+
+    function setOracle(address _oracle) public {
+        oracle = IPriceOracle(_oracle);
     }
 
     function getShareForUSD(uint256 _amtUSD) public view returns (uint256) {
@@ -60,9 +60,15 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
 
     function getShareForEth(uint256 _amtEth) public view returns (uint256) {
         (,,, uint256 _netUSDAmt) = getNetAsset();
-        uint256 _ethAmtUSD = getPrice(WETH_ADDRESS) * _amtEth;
+        uint256 _ethAmtUSD = (getPrice(WETH_ADDRESS) * _amtEth) / 1e8;
         return (_ethAmtUSD * totalSupply) / _netUSDAmt;
-        // 1e8                      // 1e8
+    }
+
+    function getEthForShare(uint256 _amtShare) public view returns (uint256) {
+        (,,, uint256 _netUSDAmt) = getNetAsset();
+        console.log(_amtShare, _netUSDAmt, totalSupply);
+        uint256 _userShareInUSD = (_amtShare * _netUSDAmt) / totalSupply;
+        return (_userShareInUSD * 1e8) / getPrice(WETH_ADDRESS);
     }
 
     function approveToken(ERC20 _token, address _spender, uint256 _amt) external onlyOwner {
@@ -80,6 +86,18 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
         AAVE_POOL.supply(WETH_ADDRESS, msg.value, address(this), 0);
     }
 
+    function withdraw(uint256 _amtShare, address _to) external {
+        require(balanceOf[msg.sender] > _amtShare, "Insufficient Balance");
+        uint256 _ethAmt = getEthForShare(_amtShare);
+        require(_ethAmt <= withdrawPool, "NA");
+        AAVE_POOL.withdraw(WETH_ADDRESS, _ethAmt, _to);
+    }
+
+    function repayToAAVE(uint256 _amt) external payable onlyOwner {
+        USDC.approve(address(AAVE_POOL), type(uint256).max);
+        AAVE_POOL.repay(USDC_ADDRESS, _amt, uint256(BorrowRate.VARIABLE), address(this));
+    }
+
     function borrowFromAAVE(uint256 _amount) public onlyOwner {
         AAVE_POOL.borrow(USDC_ADDRESS, _amount, uint256(BorrowRate.VARIABLE), 0, address(this));
     }
@@ -92,9 +110,28 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
             tokenOut: APE_COIN_ADDRESS,
             fee: POOL_FEE,
             recipient: address(this),
-            deadline: block.timestamp,
+            deadline: block.timestamp + 12,
             amountIn: _amt,
-            amountOutMinimum: 0,
+            amountOutMinimum: 0, // Not Good
+            sqrtPriceLimitX96: 0
+        });
+        //
+        uint256 _ret = SWAP_ROUTER.exactInputSingle(params);
+        console.log(_amt, "USDC swapped for", _ret, "APE");
+        return _ret;
+    }
+
+    function swapApeForUSDC(uint256 _amt) public onlyOwner returns (uint256) {
+        APE.approve(SWAP_ROUTER_ADDRESS, _amt);
+        //
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: APE_COIN_ADDRESS,
+            tokenOut: USDC_ADDRESS,
+            fee: POOL_FEE,
+            recipient: address(this),
+            deadline: block.timestamp + 12,
+            amountIn: _amt,
+            amountOutMinimum: 0, // Not Good
             sqrtPriceLimitX96: 0
         });
         //
@@ -117,9 +154,26 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
         return _apeBal;
     }
 
-    function swapPcApeForApe(uint256 _amt) public onlyOwner {
-        PC_APE.approve(HELPER_CONTRACT_PARASPACE_ADDRESS, type(uint256).max);
-        HELPER_CONTRACT_PARASPACE.convertPCApeToApeCoin(_amt);
+    function withdrawCApeViaTimeLock(uint256 _amt) public onlyOwner {
+        (bool _success, bytes memory _data) = address(POOL_APE_STAKING_ADDRESS).call(
+            abi.encodeWithSignature(
+                "withdraw(address,uint256,address)", 0xC5c9fB6223A989208Df27dCEE33fC59ff5c26fFF, _amt, address(this)
+            )
+        );
+        require(_success, string(_data));
+        agreementID = PARASPACE_TIMELOCK.agreementCount() - 1;
+    }
+
+    function claimCApeFromTimeLock() public onlyOwner {
+        uint256[] memory arr = new uint[](1);
+        arr[0] = agreementID;
+        PARASPACE_TIMELOCK.claim(arr);
+    }
+
+    function withdrawApeForCApe(uint256 _amtCApe) public onlyOwner {
+        (bool _success, bytes memory _data) =
+            address(C_APE_ADDRESS).call(abi.encodeWithSignature("withdraw(uint256)", _amtCApe));
+        require(_success, string(_data));
     }
 
     function getAAVEPosition()

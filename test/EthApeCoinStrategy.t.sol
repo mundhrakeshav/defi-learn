@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import {BaseTest} from "./Base.sol";
 import {EthApeCoinStrategy} from "../src/EthApeCoinStrategy.sol";
-import {DataTypes} from "../src/AAVE/DataTypes.sol";
 import {Config} from "../src/Config.sol";
 import {ERC20} from "solmate/src/tokens/ERC20.sol";
 import {DummyPriceOracle} from "src/DummyPriceOracle.sol";
@@ -49,7 +48,7 @@ contract EthApeCoinStrategyTest is BaseTest, Config {
         strategy.approveToken(ERC20(WETH_ADDRESS), AAVE_POOL_ADDRESS, type(uint256).max);
         // Deposit
         strategy.setOracle(address(dummyPriceOracle));
-        setAaveOracle(address(dummyPriceOracle));
+        _setAaveOracle(address(dummyPriceOracle));
         dummyPriceOracle.setAssetPrice(WETH_ADDRESS, 2000e8);
         dummyPriceOracle.setAssetPrice(USDC_ADDRESS, 1e8);
         dummyPriceOracle.setAssetPrice(APE_COIN_ADDRESS, 2e8);
@@ -133,9 +132,62 @@ contract EthApeCoinStrategyTest is BaseTest, Config {
         uint256 _apeBal = strategy.supplyToStrategy(2000e6);
         assertEq(PC_APE.balanceOf(address(strategy)), _apeBal);
         skip(30 days);
-        console.log(PC_APE.balanceOf(address(strategy)));
-        // strategy.swapPcApeForApe(1000);
-        // vm.stopPrank();
+        uint256 _amt = PC_APE.balanceOf(address(strategy)) / 2;
+        strategy.withdrawCApeViaTimeLock(_amt); // Step 1
+        skip(20 seconds);
+        strategy.claimCApeFromTimeLock(); // Step 2
+        strategy.withdrawApeForCApe(_amt); // Step 3
+        vm.stopPrank();
+        assertEq(APE.balanceOf(address(strategy)), _amt);
+    }
+
+    function testSwapApeForUSDC() public {
+        hoax(admin);
+        strategy.approveToken(ERC20(WETH_ADDRESS), AAVE_POOL_ADDRESS, type(uint256).max);
+        // Deposit
+        hoax(depositor1);
+        strategy.deposit{value: 1 ether}(depositor1);
+        hoax(depositor2);
+        strategy.deposit{value: 1 ether}(depositor2);
+        //
+        startHoax(admin);
+        uint256 _apeBal = strategy.supplyToStrategy(2000e6);
+        assertEq(PC_APE.balanceOf(address(strategy)), _apeBal);
+        skip(30 days);
+        uint256 _amt = PC_APE.balanceOf(address(strategy)) / 2;
+        strategy.withdrawCApeViaTimeLock(_amt); // Step 1
+        skip(20 seconds);
+        strategy.claimCApeFromTimeLock(); // Step 2
+        strategy.withdrawApeForCApe(_amt); // Step 3
+        //
+        strategy.swapApeForUSDC(_amt);
+        vm.stopPrank();
+    }
+
+    function testRepayUSDC() public {
+        hoax(admin);
+        strategy.approveToken(ERC20(WETH_ADDRESS), AAVE_POOL_ADDRESS, type(uint256).max);
+        // Deposit
+        hoax(depositor1);
+        strategy.deposit{value: 1 ether}(depositor1);
+        hoax(depositor2);
+        strategy.deposit{value: 1 ether}(depositor2);
+        //
+        startHoax(admin);
+        uint256 _apeBal = strategy.supplyToStrategy(2000e6);
+        assertEq(PC_APE.balanceOf(address(strategy)), _apeBal);
+        skip(30 days);
+        uint256 _amt = PC_APE.balanceOf(address(strategy)) / 2;
+        strategy.withdrawCApeViaTimeLock(_amt); // Step 1
+        skip(20 seconds);
+        strategy.claimCApeFromTimeLock(); // Step 2
+        strategy.withdrawApeForCApe(_amt); // Step 3
+        //
+        strategy.swapApeForUSDC(_amt);
+        strategy.repayToAAVE(1000e6);
+        (uint256 totalCollateralBase, uint256 totalDebtBase,,,,) = strategy.getAAVEPosition();
+        console.log(totalDebtBase, totalCollateralBase);
+        vm.stopPrank();
     }
 
     function testSupply() public {
@@ -153,7 +205,7 @@ contract EthApeCoinStrategyTest is BaseTest, Config {
         assertEq(PC_APE.balanceOf(address(strategy)), _apeBal);
     }
 
-    function logUserAccountData(address _user, string memory _details) private {
+    function _logUserAccountData(address _user, string memory _details) private {
         (
             uint256 totalCollateralBase,
             uint256 totalDebtBase,
@@ -173,12 +225,28 @@ contract EthApeCoinStrategyTest is BaseTest, Config {
         emit log_named_uint("Liquidation threshold", currentLiquidationThreshold);
     }
 
-    function setAaveOracle(address _oracleAddr) internal {
+    function _setAaveOracle(address _oracleAddr) internal {
         hoax(AAVE_ADMIN);
         AAVE_POOL_ADDRESSES_PROVIDER.setPriceOracle(_oracleAddr);
     }
 
-    function changeScaleUSDC(uint256 _amt) internal pure returns (uint256) {
-        return (_amt * 1e6) / 1e8;
+    function testFlow() public {
+        hoax(admin);
+        strategy.approveToken(ERC20(WETH_ADDRESS), AAVE_POOL_ADDRESS, type(uint256).max);
+        // Deposit
+        hoax(depositor1);
+        strategy.deposit{value: 1 ether}(depositor1);
+        hoax(depositor2);
+        strategy.deposit{value: 1 ether}(depositor2);
+        // //
+        hoax(admin);
+        uint256 _apeBal = strategy.supplyToStrategy(2000e6);
+        hoax(depositor3);
+        strategy.deposit{value: .5 ether}(depositor3);
+        assertEq(PC_APE.balanceOf(address(strategy)), _apeBal);
+        //
+        console.log(strategy.getEthForShare(strategy.balanceOf(address(depositor1))));
+        console.log(strategy.getEthForShare(strategy.balanceOf(address(depositor2))));
+        console.log(strategy.getEthForShare(strategy.balanceOf(address(depositor3))));
     }
 }
