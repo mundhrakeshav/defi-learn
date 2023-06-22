@@ -234,13 +234,19 @@ contract EthApeCoinStrategyTest is BaseTest, Config {
         hoax(admin);
         strategy.approveToken(ERC20(WETH_ADDRESS), AAVE_POOL_ADDRESS, type(uint256).max);
         // Deposit
+        console.log(uint256(CHAINLINK_ETH_USD_AGGREGATOR.latestAnswer()));
         hoax(depositor1);
         strategy.deposit{value: 1 ether}(depositor1);
-        hoax(depositor2);
-        strategy.deposit{value: 1 ether}(depositor2);
-        // //
         hoax(admin);
-        uint256 _apeBal = strategy.supplyToStrategy(2000e6);
+        uint256 _apeBal = strategy.supplyToStrategy(700e6);
+        skip(2 days);
+        vm.roll(17512921);
+        // console.log(uint256(CHAINLINK_ETH_USD_AGGREGATOR.latestAnswer()));
+        hoax(depositor2);
+        strategy.deposit{value: 5 ether}(depositor2);
+        //
+        hoax(admin);
+        _apeBal = strategy.supplyToStrategy(2000e6);
         hoax(depositor3);
         strategy.deposit{value: .5 ether}(depositor3);
         assertEq(PC_APE.balanceOf(address(strategy)), _apeBal);

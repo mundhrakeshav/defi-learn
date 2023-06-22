@@ -66,7 +66,6 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
 
     function getEthForShare(uint256 _amtShare) public view returns (uint256) {
         (,,, uint256 _netUSDAmt) = getNetAsset();
-        console.log(_amtShare, _netUSDAmt, totalSupply);
         uint256 _userShareInUSD = (_amtShare * _netUSDAmt) / totalSupply;
         return (_userShareInUSD * 1e8) / getPrice(WETH_ADDRESS);
     }
@@ -76,6 +75,7 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
     }
 
     function deposit(address _to) external payable {
+        console.log("Depositing: ", msg.value, "Eth for", _to);
         WETH.deposit{value: msg.value}();
         if (totalSupply == 0) {
             _mint(_to, msg.value);
@@ -99,6 +99,7 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
     }
 
     function borrowFromAAVE(uint256 _amount) public onlyOwner {
+        console.log("Borrowing", _amount, " USDC from AAVE");
         AAVE_POOL.borrow(USDC_ADDRESS, _amount, uint256(BorrowRate.VARIABLE), 0, address(this));
     }
 
@@ -117,7 +118,6 @@ contract EthApeCoinStrategy is Owned, ERC20("EACS", "EACS", 18), Config {
         });
         //
         uint256 _ret = SWAP_ROUTER.exactInputSingle(params);
-        console.log(_amt, "USDC swapped for", _ret, "APE");
         return _ret;
     }
 
