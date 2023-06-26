@@ -57,13 +57,13 @@ contract EthApeCoinStrategyCustomTest is BaseTest, Config {
         startHoax(admin);
         strategy.swapApeForPcApe(APE.balanceOf(address(strategy)));
         vm.stopPrank();
-        console.log("DAY0 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        console.log("DAY00 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
         skip(2 days);
         setAssetPricesDummyOracle(1770e8, 1e8, 2e8);
-        console.log("DAY2 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        console.log("DAY02 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
         skip(8 days);
-        setAssetPricesDummyOracle(1810e8, 1e8, 2.10e8);
-        console.log("DAY00 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        setAssetPricesDummyOracle(1810e8, 1e8, 2.1e8);
+        console.log("DAY10 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
         skip(20 days);
         setAssetPricesDummyOracle(1720e8, 1e8, 1.75e8);
         console.log("DAY30 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
@@ -71,7 +71,6 @@ contract EthApeCoinStrategyCustomTest is BaseTest, Config {
         setAssetPricesDummyOracle(1985e8, 1e8, 1.5e8);
         console.log("DAY75 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
     }
-
 
     function testDepositCustom2() public {
         setAssetPricesDummyOracle(1750e8, 1e8, 2.05e8);
@@ -92,18 +91,120 @@ contract EthApeCoinStrategyCustomTest is BaseTest, Config {
         startHoax(admin);
         strategy.swapApeForPcApe(APE.balanceOf(address(strategy)));
         vm.stopPrank();
-        console.log("DAY0 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        console.log("DAY00 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
         skip(2 days);
         setAssetPricesDummyOracle(1710e8, 1e8, 2.1e8);
-        console.log("DAY2 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        console.log("DAY02 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
         skip(8 days);
         setAssetPricesDummyOracle(1650e8, 1e8, 2.45e8);
-        console.log("DAY00 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        console.log("DAY10 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
         skip(20 days);
         setAssetPricesDummyOracle(1700e8, 1e8, 3.2e8);
         console.log("DAY30 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
         skip(45 days);
         setAssetPricesDummyOracle(1550e8, 1e8, 3.95e8);
+        console.log("DAY75 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+    }
+
+    function testDepositCustom3() public {
+        setAssetPricesDummyOracle(1750e8, 1e8, 2.05e8);
+        //
+        hoax(admin);
+        strategy.approveToken(ERC20(WETH_ADDRESS), AAVE_POOL_ADDRESS, type(uint256).max);
+        // Deposit
+        hoax(depositor1);
+        strategy.deposit{value: 1 ether}(depositor1);
+        // Borrow
+        uint256 _borrowAmt = 875_000_000; // 1750e6/2;
+        hoax(admin);
+        strategy.borrowFromAAVE(_borrowAmt);
+        //
+        uint256 _apeAmtAfterSwap = 426829268292682926829;
+        //(1750*1e18*1e6)/(2*2.05e6); //2.05e6 = 2050000
+        mimicSwap(USDC_ADDRESS, APE_COIN_ADDRESS, _borrowAmt, _apeAmtAfterSwap, address(strategy));
+        startHoax(admin);
+        strategy.swapApeForPcApe(APE.balanceOf(address(strategy)));
+        vm.stopPrank();
+        console.log("DAY00 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(2 days);
+        setAssetPricesDummyOracle(1995e8, 1e8, 2.2e8);
+        console.log("DAY02 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(8 days);
+        setAssetPricesDummyOracle(2100e8, 1e8, 2.25e8);
+        console.log("DAY10 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(20 days);
+        setAssetPricesDummyOracle(2250e8, 1e8, 2.55e8);
+        console.log("DAY30 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(45 days);
+        setAssetPricesDummyOracle(2800e8, 1e8, 4.5e8);
+        console.log("DAY75 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+    }
+
+    function testDepositCustom4() public {
+        setAssetPricesDummyOracle(1750e8, 1e8, 2.05e8);
+        //
+        hoax(admin);
+        strategy.approveToken(ERC20(WETH_ADDRESS), AAVE_POOL_ADDRESS, type(uint256).max);
+        // Deposit
+        hoax(depositor1);
+        strategy.deposit{value: 1 ether}(depositor1);
+        // Borrow
+        uint256 _borrowAmt = 875_000_000; // 1750e6/2;
+        hoax(admin);
+        strategy.borrowFromAAVE(_borrowAmt);
+        //
+        uint256 _apeAmtAfterSwap = 426829268292682926829;
+        //(1750*1e18*1e6)/(2*2.05e6); //2.05e6 = 2050000
+        mimicSwap(USDC_ADDRESS, APE_COIN_ADDRESS, _borrowAmt, _apeAmtAfterSwap, address(strategy));
+        startHoax(admin);
+        strategy.swapApeForPcApe(APE.balanceOf(address(strategy)));
+        vm.stopPrank();
+        console.log("DAY00 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(2 days);
+        setAssetPricesDummyOracle(1650e8, 1e8, 1.75e8);
+        console.log("DAY02 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(8 days);
+        setAssetPricesDummyOracle(1700e8, 1e8, 1.6e8);
+        console.log("DAY10 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(20 days);
+        setAssetPricesDummyOracle(1850e8, 1e8, 1.85e8);
+        console.log("DAY30 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(45 days);
+        setAssetPricesDummyOracle(1200e8, 1e8, 1.1e8);
+        console.log("DAY75 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+    }
+
+    function testDepositCustom5() public {
+        setAssetPricesDummyOracle(1750e8, 1e8, 2.05e8);
+        //
+        hoax(admin);
+        strategy.approveToken(ERC20(WETH_ADDRESS), AAVE_POOL_ADDRESS, type(uint256).max);
+        // Deposit
+        hoax(depositor1);
+        strategy.deposit{value: 1 ether}(depositor1);
+        // Borrow
+        uint256 _borrowAmt = 875_000_000; // 1750e6/2;
+        hoax(admin);
+        strategy.borrowFromAAVE(_borrowAmt);
+        //
+        uint256 _apeAmtAfterSwap = 426829268292682926829;
+        //(1750*1e18*1e6)/(2*2.05e6); //2.05e6 = 2050000
+        mimicSwap(USDC_ADDRESS, APE_COIN_ADDRESS, _borrowAmt, _apeAmtAfterSwap, address(strategy));
+        startHoax(admin);
+        strategy.swapApeForPcApe(APE.balanceOf(address(strategy)));
+        vm.stopPrank();
+        console.log("DAY00 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(2 days);
+        setAssetPricesDummyOracle(1725e8, 1e8, 2e8);
+        console.log("DAY02 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(8 days);
+        setAssetPricesDummyOracle(1730e8, 1e8, 2.05e8);
+        console.log("DAY10 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(20 days);
+        setAssetPricesDummyOracle(1765e8, 1e8, 2.1e8);
+        console.log("DAY30 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
+        skip(45 days);
+        setAssetPricesDummyOracle(1750e8, 1e8, 2.05e8);
         console.log("DAY75 EthValue: ", strategy.getEthForShare(strategy.balanceOf(depositor1)));
     }
 
