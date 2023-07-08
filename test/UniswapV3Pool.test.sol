@@ -3,10 +3,14 @@ pragma solidity ^0.8.18;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20Mintable} from "./ERC20Mintable.sol";
+import {TestUtils} from "./TestUtils.sol";
 import {UniswapV3Pool} from "../src/UniswapV3Pool.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 
-contract UniswapV3PoolTest is Test {
+contract UniswapV3PoolTest is Test, TestUtils {
+    int24 internal constant MIN_TICK = -887272;
+    int24 internal constant MAX_TICK = 887272;
+
     ERC20Mintable token0;
     ERC20Mintable token1;
     UniswapV3Pool pool;
@@ -74,6 +78,66 @@ contract UniswapV3PoolTest is Test {
         assertEq(pool.liquidity(), 1517882343751509868544, "invalid current liquidity");
     }
 
+    function testMintInvalidTickRangeLower() public {
+        pool = new UniswapV3Pool(
+            address(token0),
+            address(token1),
+            uint160(1),
+            0
+        );
+
+        vm.expectRevert(encodeError("InvalidTickRange()"));
+        pool.mint(address(this), MIN_TICK - 1, 0, 0, "");
+    }
+
+    function testMintInvalidTickRangeUpper() public {
+        pool = new UniswapV3Pool(
+            address(token0),
+            address(token1),
+            uint160(1),
+            0
+        );
+
+        vm.expectRevert(encodeError("InvalidTickRange()"));
+        pool.mint(address(this), 0, MAX_TICK + 1, 0, "");
+    }
+
+    function testMintZeroLiquidity() public {
+        pool = new UniswapV3Pool(
+            address(token0),
+            address(token1),
+            uint160(1),
+            0
+        );
+
+        vm.expectRevert(encodeError("ZeroLiquidity()"));
+        pool.mint(address(this), 0, 1, 0, "");
+    }
+
+    function testMintInsufficientTokenBalance() public {
+        TestCaseParams memory params = TestCaseParams({
+            wethBalance: 0,
+            usdcBalance: 0,
+            currentTick: 85176,
+            lowerTick: 84222,
+            upperTick: 86129,
+            liquidity: 1517882343751509868544,
+            currentSqrtP: 5602277097478614198912276234240,
+            transferInMintCallback: false,
+            transferInSwapCallback: true,
+            mintLiqudity: false
+        });
+        setupTestCase(params);
+
+        vm.expectRevert(encodeError("InsufficientInputAmount()"));
+        pool.mint(address(this), params.lowerTick, params.upperTick, params.liquidity, "");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // INTERNAL
+    //
+    ////////////////////////////////////////////////////////////////////////////
     // mints given token0 and token1 amt to address(this)
     // Creates a new pool at given tick and price
     // if mintLiquidity flag is set, mints liquidity to address(this) by adding given number of tokens
