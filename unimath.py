@@ -4,7 +4,7 @@ min_tick = -887272
 max_tick = 887272
 
 q96 = 2**96
-eth = 10**18
+e18 = 10**18
 
 
 def price_to_tick(p):
@@ -51,7 +51,7 @@ price_low = 4545
 price_cur = 5000
 price_upp = 5500
 
-print(f"Price range: {price_low}-{price_upp}; current price: {price_cur}")
+# print(f"Price range: {price_low}-{price_upp}; current price: {price_cur}")
 
 sqrtp_low = price_to_sqrtp(price_low)
 sqrtp_cur = price_to_sqrtp(price_cur)
@@ -61,37 +61,39 @@ print(sqrtp_low)
 print(sqrtp_cur)
 print(sqrtp_upp)
 
-# amount_eth = 1 * eth
-# amount_usdc = 5000 * eth
+amount_eth = 1 * e18
+amount_usdc = 5000 * e18
 
-# liq0 = liquidity0(amount_eth, sqrtp_cur, sqrtp_upp)
-# liq1 = liquidity1(amount_usdc, sqrtp_cur, sqrtp_low)
-# liq = int(min(liq0, liq1))
+liq0 = liquidity0(amount_eth, sqrtp_cur, sqrtp_upp)
+liq1 = liquidity1(amount_usdc, sqrtp_cur, sqrtp_low)
+liq = int(min(liq0, liq1))
 
-# print(f"Deposit: {amount_eth/eth} ETH, {amount_usdc/eth} USDC; liquidity: {liq}")
+print(f"Deposit: {amount_eth/e18} ETH, {amount_usdc/e18} USDC; liquidity: {liq}")
 
 # # Swap USDC for ETH
-# amount_in = 42 * eth
+amount_in = 42 * e18
 
-# print(f"\nSelling {amount_in/eth} USDC")
+print(f"\nSelling {amount_in/e18} USDC")
 
-# price_diff = (amount_in * q96) // liq
-# price_next = sqrtp_cur + price_diff
+price_diff = (amount_in * q96) // liq
 
-# print("New price:", (price_next / q96) ** 2)
-# print("New sqrtP:", price_next)
-# print("New tick:", price_to_tick((price_next / q96) ** 2))
 
-# amount_in = calc_amount1(liq, price_next, sqrtp_cur)
-# amount_out = calc_amount0(liq, price_next, sqrtp_cur)
+price_next = sqrtp_cur + price_diff
 
-# print("USDC in:", amount_in / eth)
-# print("ETH out:", amount_out / eth)
+print("New price:", (price_next / q96) ** 2)
+print("New sqrtP:", price_next)
+print("New tick:", price_to_tick((price_next / q96) ** 2))
+
+amount_in = calc_amount1(liq, price_next, sqrtp_cur)
+amount_out = calc_amount0(liq, price_next, sqrtp_cur)
+
+print("USDC in:", amount_in / e18)
+print("ETH out:", amount_out / e18)
 
 # # Swap ETH for USDC
-# amount_in = 0.01337 * eth
+# amount_in = 0.01337 * e18
 
-# print(f"\nSelling {amount_in/eth} ETH")
+# print(f"\nSelling {amount_in/e18} ETH")
 
 # price_next = int((liq * q96 * sqrtp_cur) // (liq * q96 + amount_in * sqrtp_cur))
 
@@ -102,5 +104,5 @@ print(sqrtp_upp)
 # amount_in = calc_amount0(liq, price_next, sqrtp_cur)
 # amount_out = calc_amount1(liq, price_next, sqrtp_cur)
 
-# print("ETH in:", amount_in / eth)
-# print("USDC out:", amount_out / eth)
+# print("ETH in:", amount_in / e18)
+# print("USDC out:", amount_out / e18)

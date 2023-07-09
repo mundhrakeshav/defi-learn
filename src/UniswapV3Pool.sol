@@ -6,6 +6,7 @@ import {Tick} from "./lib/Tick.sol";
 import {Position} from "./lib/Position.sol";
 import {IERC20} from "./interfaces/IERC20.sol";
 import {IUniswapV3MintCallback} from "./interfaces/IUniswapV3MintCallback.sol";
+import {IUniswapV3SwapCallback} from "./interfaces/IUniswapV3SwapCallback.sol";
 
 contract UniswapV3Pool {
     using Tick for mapping(int24 => Tick.Info);
@@ -60,10 +61,19 @@ contract UniswapV3Pool {
         uint256 amount1
     );
 
+    event Swap(
+        address indexed sender,
+        address indexed recipient,
+        int256 amount0,
+        int256 amount1,
+        uint160 sqrtPriceX96,
+        uint128 liquidity,
+        int24 tick
+    );
+
     constructor(address _token0, address _token1, uint160 _sqrtPriceX96, int24 _tick) {
         token0 = _token0;
         token1 = _token1;
-
         slot0 = Slot0({sqrtPriceX96: _sqrtPriceX96, tick: _tick});
     }
 
@@ -104,6 +114,28 @@ contract UniswapV3Pool {
             revert InsufficientInputAmount();
         }
         emit Mint(msg.sender, _owner, _lowerTick, _upperTick, _amount, _amount0, _amount1);
+    }
+
+    function swap(address _recipient, bytes calldata _data) public returns (int256 _amt0, int256 _amt1) {
+        int24 nextTick = 85184;
+        uint160 nextPrice = 5604469350942327889444743441197;
+
+        _amt0 = -0.008396714242162444 ether;
+        _amt1 = 42 ether;
+
+        (slot0.tick, slot0.sqrtPriceX96) = (nextTick, nextPrice);
+
+        IERC20(token0).transfer(_recipient, uint256(-_amt0));
+
+        uint256 _balance1Before = balance1();
+
+        IUniswapV3SwapCallback(msg.sender).uniswapV3SwapCallback(_amt0, _amt1, _data);
+
+        if (_balance1Before + uint256(_amt1) > balance1()) {
+            revert InsufficientInputAmount();
+        }
+
+        emit Swap(msg.sender, _recipient, _amt0, _amt1, slot0.sqrtPriceX96, liquidity, slot0.tick);
     }
 
     function balance0() internal returns (uint256 balance) {
