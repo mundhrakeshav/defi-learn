@@ -4,14 +4,12 @@ pragma solidity 0.8.18;
 
 import {Tick} from "./lib/Tick.sol";
 import {Position} from "./lib/Position.sol";
+import {TickBitmap} from "./lib/TickBitmap.sol";
 import {IERC20} from "./interfaces/IERC20.sol";
 import {IUniswapV3MintCallback} from "./interfaces/IUniswapV3MintCallback.sol";
 import {IUniswapV3SwapCallback} from "./interfaces/IUniswapV3SwapCallback.sol";
 
 contract UniswapV3Pool {
-    using Tick for mapping(int24 => Tick.Info);
-    using Position for mapping(bytes32 => Position.Info);
-    using Position for Position.Info;
 
     // [log_1.0001(2^−128), log_1.0001(2^128)]=[−887272,887272]
     int24 internal constant MIN_TICK = -887272;
@@ -46,6 +44,8 @@ contract UniswapV3Pool {
     // Positions info: Stores info about liquidity in various price ranges provided by a user.
     // keccak256(_owner, _lowerTick, _upperTick) => Position.Info
     mapping(bytes32 => Position.Info) public positions;
+
+    mapping(int16 => uint256) public tickBitmap;
 
     error InvalidTickRange();
     error ZeroLiquidity();
