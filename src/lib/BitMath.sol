@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.18;
-
+pragma solidity ^0.8.18;
 /// @title BitMath
 /// @dev This library provides functionality for computing bit properties of an unsigned integer
+
 library BitMath {
     /// @notice Returns the index of the most significant bit of the number,
     ///     where the least significant bit is at index 0 and the most significant bit is at index 255

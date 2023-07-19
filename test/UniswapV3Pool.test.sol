@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.18;
+pragma solidity 0.8.18;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20Mintable} from "./ERC20Mintable.sol";
@@ -50,8 +50,8 @@ contract UniswapV3PoolTest is Test, TestUtils {
         });
         (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
 
-        uint256 expectedAmount0 = 0.99897661834742528 ether;
-        uint256 expectedAmount1 = 5000 ether;
+        uint256 expectedAmount0 = 0.998833192822975409 ether;
+        uint256 expectedAmount1 = 4999.187247111820044641 ether;
         // Verify returned amt
         assertEq(poolBalance0, expectedAmount0, "incorrect token0 deposited amount");
         assertEq(poolBalance1, expectedAmount1, "incorrect token1 deposited amount");
@@ -158,9 +158,9 @@ contract UniswapV3PoolTest is Test, TestUtils {
         int256 userBalance0Before = int256(token0.balanceOf(address(this)));
         int256 userBalance1Before = int256(token1.balanceOf(address(this)));
 
-        (int256 amount0Delta, int256 amount1Delta) = pool.swap(address(this), abi.encode(extra));
+        (int256 amount0Delta, int256 amount1Delta) = pool.swap(address(this), false, swapAmount, abi.encode(extra));
 
-        assertEq(amount0Delta, -0.008396714242162444 ether, "invalid ETH out");
+        assertEq(amount0Delta, -0.008396714242162445 ether, "invalid ETH out");
         assertEq(amount1Delta, 42 ether, "invalid USDC in");
         assertEq(
             token0.balanceOf(address(this)), uint256(userBalance0Before + (-amount0Delta)), "invalid user ETH balance"
@@ -198,7 +198,7 @@ contract UniswapV3PoolTest is Test, TestUtils {
             UniswapV3Pool.CallbackData({token0: address(token0), token1: address(token1), payer: address(this)});
 
         vm.expectRevert(encodeError("InsufficientInputAmount()"));
-        pool.swap(address(this), abi.encode(extra));
+        (int256 amount0Delta, int256 amount1Delta) = pool.swap(address(this), false, 42 ether, abi.encode(extra));
     }
 
     ////////////////////////////////////////////////////////////////////////////

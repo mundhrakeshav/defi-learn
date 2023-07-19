@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.14;
+pragma solidity 0.8.18;
 
 import {Test, stdError} from "forge-std/Test.sol";
 import "./ERC20Mintable.sol";
@@ -48,8 +48,8 @@ contract UniswapV3ManagerTest is Test, TestUtils {
         });
         (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
 
-        uint256 expectedAmount0 = 0.99897661834742528 ether;
-        uint256 expectedAmount1 = 5000 ether;
+        uint256 expectedAmount0 = 0.998833192822975409 ether;
+        uint256 expectedAmount1 = 4999.187247111820044641 ether;
         assertEq(poolBalance0, expectedAmount0, "incorrect token0 deposited amount");
         assertEq(poolBalance1, expectedAmount1, "incorrect token1 deposited amount");
         assertEq(token0.balanceOf(address(pool)), expectedAmount0);
@@ -155,16 +155,24 @@ contract UniswapV3ManagerTest is Test, TestUtils {
         bytes memory extra = encodeExtra(address(token0), address(token1), address(this));
 
         int256 userBalance0Before = int256(token0.balanceOf(address(this)));
+        int256 userBalance1Before = int256(token1.balanceOf(address(this)));
 
-        (int256 amount0Delta, int256 amount1Delta) = manager.swap(address(pool), extra);
+        (int256 amount0Delta, int256 amount1Delta) = manager.swap(
+            address(pool),
+            false,
+            swapAmount,
+            extra
+        );
 
-        assertEq(amount0Delta, -0.008396714242162444 ether, "invalid ETH out");
+        assertEq(amount0Delta, -0.008396714242162445 ether, "invalid ETH out");
         assertEq(amount1Delta, 42 ether, "invalid USDC in");
 
         assertEq(
             token0.balanceOf(address(this)), uint256(userBalance0Before - amount0Delta), "invalid user ETH balance"
         );
-        assertEq(token1.balanceOf(address(this)), 0, "invalid user USDC balance");
+        assertEq(
+            token1.balanceOf(address(this)), uint256(userBalance1Before - amount1Delta), "invalid user USDC balance"
+        );
 
         assertEq(
             token0.balanceOf(address(pool)), uint256(int256(poolBalance0) + amount0Delta), "invalid pool ETH balance"
@@ -197,7 +205,12 @@ contract UniswapV3ManagerTest is Test, TestUtils {
         bytes memory extra = encodeExtra(address(token0), address(token1), address(this));
 
         vm.expectRevert(stdError.arithmeticError);
-        manager.swap(address(pool), extra);
+        (int256 amount0Delta, int256 amount1Delta) = manager.swap(
+            address(pool),
+            false,
+            42 ether,
+            extra
+        );
     }
 
     ////////////////////////////////////////////////////////////////////////////
