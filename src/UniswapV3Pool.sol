@@ -5,12 +5,17 @@ pragma solidity 0.8.18;
 import {Tick} from "./lib/Tick.sol";
 import {Position} from "./lib/Position.sol";
 import {TickBitmap} from "./lib/TickBitmap.sol";
+import {Math} from "./lib/Math.sol";
+import {Position} from "./lib/Position.sol";
 import {IERC20} from "./interfaces/IERC20.sol";
 import {IUniswapV3MintCallback} from "./interfaces/IUniswapV3MintCallback.sol";
 import {IUniswapV3SwapCallback} from "./interfaces/IUniswapV3SwapCallback.sol";
+// import "./lib/SwapMath.sol";
+import {Tick} from "./lib/Tick.sol";
+import {TickBitmap} from "./lib/TickBitmap.sol";
+// import {TickMath} from "./lib/TickMath.sol";
 
 contract UniswapV3Pool {
-
     // [log_1.0001(2^−128), log_1.0001(2^128)]=[−887272,887272]
     int24 internal constant MIN_TICK = -887272;
     int24 internal constant MAX_TICK = 887272;
@@ -90,15 +95,27 @@ contract UniswapV3Pool {
         // Initializes a tick if it had 0 liquidity and adds new liquidity to it.
         // We’re calling update function on both lower and upper ticks, thus liquidity is added to both of them. \
         // We don't update all the ticks in between.
-        Tick.update(ticks, _lowerTick, _amount);
-        Tick.update(ticks, _upperTick, _amount);
+        bool _flippedLower = Tick.update(ticks, _lowerTick, _amount);
+        bool _flippedUpper = Tick.update(ticks, _upperTick, _amount);
+
+        if (_flippedLower) {
+            TickBitmap.flipTick(tickBitmap, _lowerTick, 1);
+        }
+        if (_flippedUpper) {
+            TickBitmap.flipTick(tickBitmap, _upperTick, 1);
+        }
         //
         // Updates the user position
         Position.Info storage position = Position.get(positions, _owner, _lowerTick, _upperTick);
         Position.update(position, _amount);
 
-        _amount0 = 0.99897661834742528 ether;
-        _amount1 = 5000 ether;
+        _amount0 = Math.calcAmount0Delta(
+            TickMath.getSqrtRatioAtTick(slot0_.tick), TickMath.getSqrtRatioAtTick(upperTick), amount
+        );
+
+        _amount1 = Math.calcAmount1Delta(
+            TickMath.getSqrtRatioAtTick(slot0_.tick), TickMath.getSqrtRatioAtTick(lowerTick), amount
+        );
 
         liquidity += uint128(_amount);
 
