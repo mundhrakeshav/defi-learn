@@ -2,6 +2,7 @@
 pragma solidity 0.8.18;
 /// @title EtherPaymentFallback - A contract that has a fallback to accept ether payments
 /// @author Richard Meissner - <richard@gnosis.pm>
+
 contract EtherPaymentFallback {
     event SafeReceived(address indexed sender, uint256 value);
 

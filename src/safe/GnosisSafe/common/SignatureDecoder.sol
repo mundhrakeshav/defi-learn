@@ -2,6 +2,7 @@
 pragma solidity 0.8.18;
 /// @title SignatureDecoder - Decodes signatures that a encoded as bytes
 /// @author Richard Meissner - <richard@gnosis.pm>
+
 contract SignatureDecoder {
     /// @dev divides bytes signature into `uint8 v, bytes32 r, bytes32 s`.
     /// @notice Make sure to peform a bounds check for @param pos, to avoid out of bounds access on @param signatures

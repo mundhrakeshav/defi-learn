@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity 0.8.18;
+
 import "../common/SelfAuthorized.sol";
 
 /// @title OwnerManager - Manages a set of owners and a threshold to perform actions.

@@ -2,6 +2,7 @@
 pragma solidity 0.8.18;
 /// @title SecuredTokenTransfer - Secure token transfer
 /// @author Richard Meissner - <richard@gnosis.pm>
+
 contract SecuredTokenTransfer {
     /// @dev Transfers a token and returns if it was a success
     /// @param token Token that should be transferred

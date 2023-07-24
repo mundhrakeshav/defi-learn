@@ -6,6 +6,7 @@ pragma solidity 0.8.18;
  * Renamed from SafeMath to GnosisSafeMath to avoid conflicts
  * TODO: remove once open zeppelin update to solc 0.5.0
  */
+
 library GnosisSafeMath {
     /**
      * @dev Multiplies two numbers, reverts on overflow.
